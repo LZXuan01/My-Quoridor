@@ -61,9 +61,10 @@ Quoridor 是一个双人策略游戏，目标是第一个到达对方的目标�
 如果你在游戏中遇到问题，或者有任何建议，欢迎在 GitHub 上提交 Issue，或者直接联系我。
 
 ## 感谢
-- 感谢 [某某游戏/设计] 提供的灵感。
+- 感谢 [@quoridorstrategy] 提供的灵感。
 - 感谢 raylib 社区提供的强大支持。
-- 感谢 AI DeepSeek 在开发过程中提供的帮助。
+- 感谢游戏创造者 [Mirko Marchesi]
+- 感谢免费资源提供网站[https://mixkit.co/free-sound-effects/click/]
 
 ---
 
