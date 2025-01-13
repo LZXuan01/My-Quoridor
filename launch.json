@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug Raylib Project",
+        "type": "cppdbg",  // 使用 C++ 调试器
+        "request": "launch",  // 启动调试
+        "program": "${workspaceFolder}/${fileBasenameNoExtension}.exe",  // 设置可执行文件路径
+        "args": [],  // 传递给程序的参数
+        "stopAtEntry": false,  // 不在程序入口处停止
+        "cwd": "${workspaceFolder}",  // 工作目录
+        "MIMode": "gdb",  // 使用 GDB 调试器
+        "miDebuggerPath": "C:/msys64/mingw64/bin/gdb.exe",  // GDB 调试器的路径
+        "preLaunchTask": "Build Raylib Project",  // 运行编译任务
+        "externalConsole": true,  // 是否使用外部控制台显示输出
+        "internalConsoleOptions": "openOnSessionStart"
+      }
+    ]
+  }
+  
