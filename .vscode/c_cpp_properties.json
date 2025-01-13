@@ -1,0 +1,26 @@
+{
+    "configurations": [
+      {
+        "name": "Win32",
+        "includePath": [
+            "C:\\msys64\\mingw64\\include",
+            "${workspaceFolder}/",
+            "${workspaceFolder}/*.h"
+        ],
+        "browse": {
+            "path": [
+                "C:\\msys64\\mingw64\\include",
+                "${workspaceFolder}/",
+                "${workspaceFolder}/*.h"
+            ]
+        },
+        "defines": [],
+        "compilerPath": "C:\\msys64\\mingw64\\bin\\g++",  // 使用 MSYS2 的 g++ 编译器
+        "intelliSenseMode": "gcc-x64",
+        "cStandard": "c11",
+        "cppStandard": "c++17"
+      }
+    ],
+    "version": 4
+  }
+  
