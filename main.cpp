@@ -358,7 +358,7 @@ int main()
     Sound clickSound = LoadSound("assets\\mixkit-modern-technology-select-3124.wav");
     Sound alert = LoadSound("assets\\game_alert.wav");
     // 玩家初始化
-    Player player1 = {7, 4, white, 10}; // 玩家1，初始化位置x=0  y = 4  , red color , 持有7个墙壁 （0~9 ， 像素坐标为0~9 * cellSize）
+    Player player1 = {0, 4, white, 10}; // 玩家1，初始化位置x=0  y = 4  , red color , 持有7个墙壁 （0~9 ， 像素坐标为0~9 * cellSize）
     Player player2 = {8, 4, black, 10}; // 玩家2，初始化位置x=8  y = 4  , red color , 持有7个墙壁
 
     bool player1Selected = false; // 玩家没有被selected
