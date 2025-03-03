@@ -4,360 +4,71 @@
 #include <queue>
 #include <unordered_set>
 #include <unistd.h>
-#include "menu.h"
 
-    // 定义棋盘的尺寸
-    const int boardSize = 9;
+Color Board = {174, 160, 145, 255};      // 浅可可色（棋盘） 
+Color background = {244, 243, 232, 255}; // 白色（背景）
+Color brown = {160, 143, 128, 255};      // 可可色
+Color white = {248, 241, 238, 255};      // 白色
+Color black = {84, 74, 65, 255};         // 黑色
+Color line = {176, 159, 145, 255};       // 可可色（美观线条）
+Color textcolor = {105, 103, 92, 255};   // 可可色（字体）
+
+
+const int boardSize = 9; // 棋盘的尺寸
 const int cellSize = 60; // 每个格子的大小
 
-const int uiHorizon = 50; // UI 元素的左右边距
-const int uiVertical = 220;
+const int uiHorizon  =  50;  // 左右间距 
+const int uiVertical = 220;  // 上下间距
 
+const char *placementErrorMsg = nullptr;  // 提醒用户放置墙壁错误
 
-
-const char *placementErrorMsg = nullptr;
-
-// 玩家结构体
-struct Player
+struct Player // 玩家结构体
 {
     int x, y;    // 玩家位置
     Color color; // 玩家颜色
     int walls;   // 玩家持有的墙壁数量
 };
 
-// 墙壁结构体
-struct Wall
+
+struct Wall // 墙壁结构体
 {
-    int x, y;        // 墙壁的起始位置（左上角）
-    bool horizontal; // 墙壁方向：true为水平，false为垂直
-    int playerid;
+    int x, y;        // 墙壁的起始位置
+    bool horizontal; // 墙壁方向：true为水平
+    int playerid;    // 玩家回合标准
 };
 
-// 绘制棋盘
-void DrawBoard()
-{
-    for (int row = 0; row < boardSize; row++)
-    {
-        for (int col = 0; col < boardSize; col++)
-        {
-            // 调整 X 坐标，增加 uiMargin
-            Rectangle cell = {
-                (float)(uiHorizon + col * cellSize),  // X 坐标增加 uiMargin
-                (float)(row * cellSize + uiVertical), // Y 坐标不变
-                (float)cellSize,
-                (float)cellSize};
-            DrawRectangleLinesEx(cell, 4, line);
-        }
-    }
-}
+void DrawBoard(); // 绘制棋盘
 
-void DrawPosition()
-{
-    DrawText("9", 23, uiVertical + 18, 18, textcolor);
-    DrawText("8", 23, uiVertical + 18 + 60 * 1, 18, textcolor);
-    DrawText("7", 23, uiVertical + 18 + 60 * 2, 18, textcolor);
-    DrawText("6", 23, uiVertical + 18 + 60 * 3, 18, textcolor);
-    DrawText("5", 23, uiVertical + 18 + 60 * 4, 18, textcolor);
-    DrawText("4", 23, uiVertical + 18 + 60 * 5, 18, textcolor);
-    DrawText("3", 23, uiVertical + 18 + 60 * 6, 18, textcolor);
-    DrawText("2", 23, uiVertical + 18 + 60 * 7, 18, textcolor);
-    DrawText("1", 25, uiVertical + 18 + 60 * 8, 20, textcolor);
+void DrawPosition(); // 绘制坐标
 
-    DrawText("a", 45 + cellSize / 2, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("b", 45 + cellSize / 2 + 60 * 1, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("c", 45 + cellSize / 2 + 60 * 2, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("d", 45 + cellSize / 2 + 60 * 3, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("e", 45 + cellSize / 2 + 60 * 4, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("f", 45 + cellSize / 2 + 60 * 5, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("g", 45 + cellSize / 2 + 60 * 6, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("h", 45 + cellSize / 2 + 60 * 7, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-    DrawText("i", 45 + cellSize / 2 + 60 * 8, boardSize * cellSize + uiVertical + 10, 18, textcolor);
-}
+// 玩家函数
+void DrawPlayer(Player player);                                             // 绘制玩家
+void DrawValidMoves(Vector2 validMoves[], int validMovesCount);             // 绘制可选路径（黄色小点）
+bool IsMouseOnPlayer(int mouseX, int mouseY, Player player);                // 检查是否点击到玩家角色
+bool IsPathBlockedForPlayer(Player player, const std::vector<Wall> &walls); // 检查玩家放置的墙壁是否阻挡所有路径
 
-// 绘制玩家
-void DrawPlayer(Player player)
-{
-    DrawCircle(player.x * cellSize + cellSize / 2 + uiHorizon, player.y * cellSize + cellSize / 2 + uiVertical, cellSize / 4, player.color); // Y坐标加uiVertical
-} // player.x * cellSize 将坐标转换为像素坐标， + cellSize / 2 是调整 circle去cell的middle
+// 墙壁函数
+void DrawWalls(const std::vector<Wall> &walls);                                                 // 绘制墙壁
+void DrawWallCount(Player player1, Player player2);                                             // 绘制玩家剩余的墙壁数量
+bool IsMouseOnWallButton(int mouseX, int mouseY, int playerId);                                 // 检查鼠标有没有在wall上
+void RotationWall(bool &isHorizontal);                                                          // 旋转墙壁
+bool IsWallValid(const Wall &wall, const std::vector<Wall> &walls);                             // 检查是否可以放置墙壁
+bool IsPathBlocked(int PlayerX, int PlayerY, int GoX, int GoY, const std::vector<Wall> &walls); // 检查路径是否被墙壁阻挡
+void ListWalls(const std::vector<Wall> &walls);                                                 // 在terminal显示墙壁信息
 
-// 检查鼠标是否点击到玩家角色
-bool IsMouseOnPlayer(int mouseX, int mouseY, Player player)
-{
 
-    int playerCenterX = player.x * cellSize + cellSize / 2 + uiHorizon;
-    int playerCenterY = player.y * cellSize + cellSize / 2 + uiVertical; // Y坐标加uiVertical，适应棋盘的偏移
-    // playerCenterX 获取了格子中心点
-    return (mouseX >= playerCenterX - cellSize / 4 && mouseX <= playerCenterX + cellSize / 4) &&
-           (mouseY >= playerCenterY - cellSize / 4 && mouseY <= playerCenterY + cellSize / 4);
-} //  想象一个四方形蛋糕被切成4片，其中两片靠近中间才在鼠标范围内
-
-bool CheckVictory(Player player)
-{
-    if (player.color.r == white.r && player.color.g == white.g && player.color.b == white.b && player.x == boardSize - 1)
-    {
-        return true;
-    }
-    if (player.color.r == black.r && player.color.g == black.g && player.color.b == black.b && player.x == 0)
-    {
-        return true;
-    }
-    return false;
-} // 用rgb颜色判断红方还是蓝方赢
-
-// 绘制墙壁
-void DrawWalls(const std::vector<Wall> &walls)
-{
-    for (const auto &wall : walls)
-    {
-        Color wallColor = (wall.playerid == 0) ? white : black; // 根据 playerid 选择颜色
-        if (wall.horizontal)
-        {
-            // 水平墙壁
-            DrawRectangle(wall.x * cellSize + uiHorizon + 5, wall.y * cellSize + uiVertical - 5, cellSize * 2 - 9, 10, wallColor);
-        }
-        else
-        {
-            // 垂直墙壁
-            DrawRectangle(wall.x * cellSize + uiHorizon - 5, wall.y * cellSize + uiVertical + 5, 10, cellSize * 2 - 9, wallColor);
-        }
-    }
-}
-
-// 检查鼠标有没有在wall上
-bool IsMouseOnWallButton(int mouseX, int mouseY, int playerId)
-{
-    if (playerId == 0)
-    { // 玩家1
-        return mouseX >= (540 + uiHorizon + uiHorizon) / 2 - 70 && mouseX <= (540 + uiHorizon + uiHorizon) / 2 + 20 && mouseY >= boardSize * cellSize + uiVertical + 70 && mouseY <= boardSize * cellSize + uiVertical + 70 + 23;
-    }
-    else if (playerId == 1)
-    { // 玩家2
-        return mouseX >= (540 + uiHorizon + uiHorizon) / 2 + 100 && mouseX <= (540 + uiHorizon + uiHorizon) / 2 + 100 + 70 && mouseY >= boardSize * cellSize + uiVertical + 70 && mouseY <= boardSize * cellSize + uiVertical + 70 + 23;
-    }
-    return false;
-}
-
-// 绘制墙壁数量UI
-void DrawWallCount(Player player1, Player player2)
-{
-    DrawText(TextFormat("WHITE   %d", player1.walls), (540 + uiHorizon + uiHorizon) / 2 - 70, boardSize * cellSize + uiVertical + 70, 23, textcolor);
-
-    DrawText(TextFormat("BLACK   %d", player2.walls), (540 + uiHorizon + uiHorizon) / 2 + 100, boardSize * cellSize + uiVertical + 70, 23, textcolor);
-}
-
-bool IsWallValid(const Wall &wall, const std::vector<Wall> &walls)
-{
-    // 检查墙壁的第二个格子是否超出棋盘范围
-    if (wall.horizontal)
-    {
-        if (wall.x >= boardSize - 1 || wall.y >= boardSize) // 水平墙壁的第二个格子是 (x+1, y)
-            return false;
-    }
-    else
-    {
-        if (wall.x >= boardSize || wall.y >= boardSize - 1) // 垂直墙壁的第二个格子是 (x, y+1)
-            return false;
-    }
-
-    // 检查墙壁的两个格子是否与已有墙壁的任意一个格子重叠
-    for (const auto &existingWall : walls)
-    {
-        if (existingWall.horizontal == wall.horizontal)
-        {
-            // 同方向墙壁：检查是否完全重叠
-            if (existingWall.horizontal)
-            {
-                // 已有墙壁是水平方向
-                if ((wall.x == existingWall.x && wall.y == existingWall.y) ||     // 检查第一个格子
-                    (wall.x + 1 == existingWall.x && wall.y == existingWall.y) || // 检查第二个格子
-                    (wall.x == existingWall.x + 1 && wall.y == existingWall.y))   // 检查与已有墙壁的重叠
-                {
-                    return false; // 重叠
-                }
-            }
-            else
-            {
-                // 已有墙壁是垂直方向
-                if ((wall.x == existingWall.x && wall.y == existingWall.y) ||     // 检查第一个格子
-                    (wall.x == existingWall.x && wall.y + 1 == existingWall.y) || // 检查第二个格子
-                    (wall.x == existingWall.x && wall.y == existingWall.y + 1))   // 检查与已有墙壁的重叠
-                {
-                    return false; // 重叠
-                }
-            }
-        }
-        else
-        {
-            // 不同方向墙壁：允许交叉，不检查重叠
-            continue;
-        }
-    }
-    return true; // 没有重叠
-}
-
-void RotationWall(bool &isHorizontal)
-{
-    if (IsKeyPressed(KEY_Q))
-    {
-        if (isHorizontal == true)
-        {
-            isHorizontal = false;
-        }
-        else if (isHorizontal == false)
-        {
-            isHorizontal = true;
-        }
-    }
-    if (IsKeyPressed(KEY_E))
-    {
-        if (isHorizontal == false)
-        {
-            isHorizontal = true;
-        }
-        else if (isHorizontal == true)
-        {
-            isHorizontal = false;
-        }
-    }
-}
-
-// 绘制可选路径（黄色小点）
-void DrawValidMoves(Vector2 validMoves[], int validMovesCount)
-{
-    for (int i = 0; i < validMovesCount; i++)
-    {
-        DrawCircle(validMoves[i].x * cellSize + cellSize / 2 + uiHorizon, validMoves[i].y * cellSize + cellSize / 2 + uiVertical, 5, YELLOW); // Y坐标加uiVertical
-    }
-}
-
-// 检查路径是否被墙壁阻挡
-bool IsPathBlocked(int PlayerX, int PlayerY, int GoX, int GoY, const std::vector<Wall> &walls)
-{
-    if (PlayerY == GoY)
-    {
-        // 左右移动
-        int minX = (PlayerX < GoX) ? PlayerX : GoX; // 找到较小的 x 坐标
-        for (const auto &wall : walls)
-        {
-            // 检查是否有垂直墙壁位于当前单元格和目标单元格之间的垂直线上
-            if (!wall.horizontal && wall.x - 1 == minX && wall.y == PlayerY)
-            {
-                return true; // 垂直墙壁阻挡水平移动
-            }
-            else if (!wall.horizontal && wall.x - 1 == minX && wall.y + 1 == PlayerY)
-            {
-                return true; // 垂直墙壁阻挡水平移动
-            }
-        }
-    }
-    else if (PlayerX == GoX)
-    {
-        // 垂直移动
-        int minY = (PlayerY < GoY) ? PlayerY : GoY; // 找到较小的 y 坐标
-        for (const auto &wall : walls)
-        {
-            // 检查是否有水平墙壁位于当前单元格和目标单元格之间的水平线上
-            if (wall.horizontal && wall.x == PlayerX && wall.y == minY + 1)
-            {
-                return true; // 水平墙壁阻挡垂直移动
-            }
-            else if (wall.horizontal && wall.x + 1 == PlayerX && wall.y == minY + 1)
-            {
-                return true; // 水平墙壁阻挡垂直移动
-            }
-        }
-    }
-    return false; // 路径未被阻挡
-}
-
-bool IsPathBlockedForPlayer(Player player, const std::vector<Wall> &walls)
-{
-    // 玩家的目标端
-    int targetX = (player.color.r == white.r && player.color.g == white.g && player.color.b == white.b) ? boardSize - 1 : 0; // 判断终点在0还是8
-
-    // BFS 队列
-    std::queue<std::pair<int, int>> q;
-    q.push({player.x, player.y});
-
-    // 访问标记
-    std::unordered_set<int> visited;
-    visited.insert(player.x * boardSize + player.y);
-
-    // 方向数组：上、下、左、右
-    int dx[] = {0, 0, -1, 1};
-    int dy[] = {-1, 1, 0, 0};
-
-    while (!q.empty())
-    {
-        auto current = q.front();
-        q.pop();
-        int x = current.first;
-        int y = current.second;
-
-        // 到达目标端
-        if (x == targetX)
-            return false; // 路径未被阻断
-
-        // 遍历四个方向
-        for (int i = 0; i < 4; i++)
-        {
-            int nx = x + dx[i];
-            int ny = y + dy[i];
-
-            // 检查是否在棋盘范围内
-            if (nx >= 0 && nx < boardSize && ny >= 0 && ny < boardSize)
-            {
-                // 检查路径是否被墙壁阻挡
-                bool isBlocked = false;
-                if (dx[i] == -1 && IsPathBlocked(x, y, nx, ny, walls)) // 左
-                    isBlocked = true;
-                else if (dx[i] == 1 && IsPathBlocked(x, y, nx, ny, walls)) // 右
-                    isBlocked = true;
-                else if (dy[i] == -1 && IsPathBlocked(x, y, nx, ny, walls)) // 上
-                    isBlocked = true;
-                else if (dy[i] == 1 && IsPathBlocked(x, y, nx, ny, walls)) // 下
-                    isBlocked = true;
-
-                if (!isBlocked)
-                {
-                    int key = nx * boardSize + ny;
-                    if (visited.find(key) == visited.end())
-                    {
-                        visited.insert(key);
-                        q.push({nx, ny});
-                    }
-                }
-            }
-        }
-    }
-
-    return true; // 路径被阻断
-}
-
-void ListWalls(const std::vector<Wall> &walls)
-{
-    for (size_t i = 0; i < walls.size(); i++)
-    {
-        const Wall &wall = walls[i];
-        const char *direction = wall.horizontal ? "Horizontal" : "Vertical";
-        printf("Wall %zu: x = %d, y = %d, direction = %s\n", i + 1, wall.x, wall.y, direction);
-    }
-}
+bool CheckVictory(Player player); // 检查获胜
 
 // 主程序
 int main()
 {
-    // 初始化窗口
-    int run_game = showmenu();
-    if (run_game == 1)
-    {
-
-    
-    InitWindow(540 + uiHorizon + uiHorizon, 780 + uiVertical, "Turn-based Game");
+    InitWindow(640 , 1000 , "Quoridor");
     InitAudioDevice();
-    Sound clickSound = LoadSound("assets\\mixkit-modern-technology-select-3124.wav");
+
+    Sound clickSound = LoadSound("assets\\clickSound.wav");
     Sound alert = LoadSound("assets\\game_alert.wav");
-    // 玩家初始化
+
+
     Player player1 = {0, 4, white, 10}; // 玩家1，初始化位置x=0  y = 4  , red color , 持有7个墙壁 （0~9 ， 像素坐标为0~9 * cellSize）
     Player player2 = {8, 4, black, 10}; // 玩家2，初始化位置x=8  y = 4  , red color , 持有7个墙壁
 
@@ -594,7 +305,7 @@ int main()
                     validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y - 1)};
                 if (player2.y < boardSize - 1 && !(player2.x == player1.x && player2.y + 1 == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x, player2.y + 1, walls))
                     validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y + 1)};
-                // player 2 
+                // player 2
                 if (player2.x > 1 && (player2.x - 1 == player1.x && player2.y == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x - 1, player2.y, walls)) // 玩家1在左手边
                 {
                     if (!IsPathBlocked(player2.x - 1, player2.y, player2.x - 1 - 1, player2.y, walls))
@@ -734,8 +445,8 @@ int main()
         ClearBackground(background);
         DrawRectangleRounded({0, uiVertical - 50, boardSize * cellSize + uiHorizon + uiHorizon, boardSize * cellSize + 100}, 0.1, 0.0, Board);
         DrawRectangle(50, uiVertical, boardSize * cellSize, boardSize * cellSize, brown);
-        DrawText("Quoridor " , 640/2 - 120 , 60 , 50 , textcolor);
-        DrawText("by lzx" , 640 - 30  , 780 + uiVertical - 30 ,  10 , textcolor) ;
+        DrawText("Quoridor ", 640 / 2 - 120, 60, 50, textcolor);
+        DrawText("by lzx", 640 - 30, 780 + uiVertical - 30, 10, textcolor);
         DrawLineEx({20, ((uiVertical - 50) + boardSize * cellSize + 100) + 50}, {540 + uiHorizon + uiHorizon - 20, ((uiVertical - 50) + boardSize * cellSize + 100) + 50}, 3, textcolor);
 
         // 绘制棋盘
@@ -818,23 +529,318 @@ int main()
         }
         if (placementErrorMsg)
         {
-            
+
             DrawText(placementErrorMsg, 20, boardSize * cellSize + uiVertical + 150, 25, textcolor);
         }
 
         EndDrawing();
     }
 
-    UnloadSound(clickSound);
-    UnloadSound(alert);
-    CloseAudioDevice();
+}
 
 
-    CloseWindow();
-    }
-    else if (run_game == 2)
+
+// 函数体
+
+bool CheckVictory(Player player) // 检查获胜状态
+{
+    if (player.color.r == white.r && player.color.g == white.g && player.color.b == white.b && player.x == boardSize - 1)
     {
-        showTutorial();
+        return true;
     }
-    return 0;
+    if (player.color.r == black.r && player.color.g == black.g && player.color.b == black.b && player.x == 0)
+    {
+        return true;
+    }
+    return false;
+} // 用rgb颜色判断红方还是蓝方赢
+
+void DrawBoard() //绘制棋盘
+{
+    for (int row = 0; row < boardSize; row++)
+    {
+        for (int col = 0; col < boardSize; col++)
+        {
+            // 调整 X 坐标，增加 uiMargin
+            Rectangle cell = {
+                (float)(uiHorizon + col * cellSize),  // X 坐标增加 uiMargin
+                (float)(row * cellSize + uiVertical), // Y 坐标不变
+                (float)cellSize,
+                (float)cellSize};
+            DrawRectangleLinesEx(cell, 4, line);
+        }
+    }
+}
+
+void DrawPosition() //绘制棋盘的坐标
+{
+    DrawText("9", 23, uiVertical + 18, 18, textcolor);
+    DrawText("8", 23, uiVertical + 18 + 60 * 1, 18, textcolor);
+    DrawText("7", 23, uiVertical + 18 + 60 * 2, 18, textcolor);
+    DrawText("6", 23, uiVertical + 18 + 60 * 3, 18, textcolor);
+    DrawText("5", 23, uiVertical + 18 + 60 * 4, 18, textcolor);
+    DrawText("4", 23, uiVertical + 18 + 60 * 5, 18, textcolor);
+    DrawText("3", 23, uiVertical + 18 + 60 * 6, 18, textcolor);
+    DrawText("2", 23, uiVertical + 18 + 60 * 7, 18, textcolor);
+    DrawText("1", 25, uiVertical + 18 + 60 * 8, 20, textcolor);
+
+    DrawText("a", 45 + cellSize / 2, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("b", 45 + cellSize / 2 + 60 * 1, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("c", 45 + cellSize / 2 + 60 * 2, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("d", 45 + cellSize / 2 + 60 * 3, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("e", 45 + cellSize / 2 + 60 * 4, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("f", 45 + cellSize / 2 + 60 * 5, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("g", 45 + cellSize / 2 + 60 * 6, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("h", 45 + cellSize / 2 + 60 * 7, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+    DrawText("i", 45 + cellSize / 2 + 60 * 8, boardSize * cellSize + uiVertical + 10, 18, textcolor);
+}
+
+void DrawPlayer(Player player) // 绘制玩家
+{
+    DrawCircle(player.x * cellSize + cellSize / 2 + uiHorizon, player.y * cellSize + cellSize / 2 + uiVertical, cellSize / 4, player.color);
+}
+
+void DrawWalls(const std::vector<Wall> &walls) // 绘制墙壁
+{
+    for (const auto &wall : walls)
+    {
+        Color wallColor = (wall.playerid == 0) ? white : black; // 根据 playerid 选择颜色
+        if (wall.horizontal)
+        {
+            // 水平墙壁
+            DrawRectangle(wall.x * cellSize + uiHorizon + 5, wall.y * cellSize + uiVertical - 5, cellSize * 2 - 9, 10, wallColor);
+        }
+        else
+        {
+            // 垂直墙壁
+            DrawRectangle(wall.x * cellSize + uiHorizon - 5, wall.y * cellSize + uiVertical + 5, 10, cellSize * 2 - 9, wallColor);
+        }
+    }
+}
+
+bool IsMouseOnPlayer(int mouseX, int mouseY, Player player) // 检查是否点击到玩家角色
+{
+    // playerCenterX 获取了格子中心点
+    int playerCenterX = player.x * cellSize + cellSize / 2 + uiHorizon;
+    int playerCenterY = player.y * cellSize + cellSize / 2 + uiVertical;
+
+    return (mouseX >= playerCenterX - cellSize / 4 && mouseX <= playerCenterX + cellSize / 4) && (mouseY >= playerCenterY - cellSize / 4 && mouseY <= playerCenterY + cellSize / 4); // return true or false
+    //  想象一个四方形蛋糕被切成4片，其中两片靠近中间才在鼠标范围内
+}
+
+bool IsMouseOnWallButton(int mouseX, int mouseY, int playerId) // 检查鼠标有没有在wall上
+{
+    if (playerId == 0)
+    { // 玩家1
+        return mouseX >= (540 + uiHorizon + uiHorizon) / 2 - 70 && mouseX <= (540 + uiHorizon + uiHorizon) / 2 + 20 && mouseY >= boardSize * cellSize + uiVertical + 70 && mouseY <= boardSize * cellSize + uiVertical + 70 + 23;
+    }
+    else if (playerId == 1)
+    { // 玩家2
+        return mouseX >= (540 + uiHorizon + uiHorizon) / 2 + 100 && mouseX <= (540 + uiHorizon + uiHorizon) / 2 + 100 + 70 && mouseY >= boardSize * cellSize + uiVertical + 70 && mouseY <= boardSize * cellSize + uiVertical + 70 + 23;
+    }
+    return false;
+}
+
+void DrawWallCount(Player player1, Player player2) // 绘制墙壁数量UI
+{
+    DrawText(TextFormat("WHITE   %d", player1.walls), (540 + uiHorizon + uiHorizon) / 2 - 70, boardSize * cellSize + uiVertical + 70, 23, textcolor);
+
+    DrawText(TextFormat("BLACK   %d", player2.walls), (540 + uiHorizon + uiHorizon) / 2 + 100, boardSize * cellSize + uiVertical + 70, 23, textcolor);
+}
+
+bool IsWallValid(const Wall &wall, const std::vector<Wall> &walls) // 检查是否可以放置墙壁
+{
+    // 检查墙壁的第二个格子是否超出棋盘范围
+    if (wall.horizontal)
+    {
+        if (wall.x >= boardSize - 1 || wall.y >= boardSize) // 水平墙壁的第二个格子是 (x+1, y)
+            return false;
+    }
+    else
+    {
+        if (wall.x >= boardSize || wall.y >= boardSize - 1) // 垂直墙壁的第二个格子是 (x, y+1)
+            return false;
+    }
+
+    // 检查墙壁的两个格子是否与已有墙壁的任意一个格子重叠
+    for (const auto &existingWall : walls)
+    {
+        if (existingWall.horizontal == wall.horizontal)
+        {
+            // 同方向墙壁：检查是否完全重叠
+            if (existingWall.horizontal)
+            {
+                // 已有墙壁是水平方向
+                if ((wall.x == existingWall.x && wall.y == existingWall.y) ||     // 检查第一个格子
+                    (wall.x + 1 == existingWall.x && wall.y == existingWall.y) || // 检查第二个格子
+                    (wall.x == existingWall.x + 1 && wall.y == existingWall.y))   // 检查与已有墙壁的重叠
+                {
+                    return false; // 重叠
+                }
+            }
+            else
+            {
+                // 已有墙壁是垂直方向
+                if ((wall.x == existingWall.x && wall.y == existingWall.y) ||     // 检查第一个格子
+                    (wall.x == existingWall.x && wall.y + 1 == existingWall.y) || // 检查第二个格子
+                    (wall.x == existingWall.x && wall.y == existingWall.y + 1))   // 检查与已有墙壁的重叠
+                {
+                    return false; // 重叠
+                }
+            }
+        }
+        else
+        {
+            // 不同方向墙壁：允许交叉，不检查重叠
+            continue;
+        }
+    }
+    return true; // 没有重叠
+}
+
+void RotationWall(bool &isHorizontal) // 旋转墙壁
+{
+    if (IsKeyPressed(KEY_Q))
+    {
+        if (isHorizontal == true)
+        {
+            isHorizontal = false;
+        }
+        else if (isHorizontal == false)
+        {
+            isHorizontal = true;
+        }
+    }
+    if (IsKeyPressed(KEY_E))
+    {
+        if (isHorizontal == false)
+        {
+            isHorizontal = true;
+        }
+        else if (isHorizontal == true)
+        {
+            isHorizontal = false;
+        }
+    }
+}
+
+bool IsPathBlocked(int PlayerX, int PlayerY, int GoX, int GoY, const std::vector<Wall> &walls) // 检查路径是否被墙壁阻挡
+{
+    if (PlayerY == GoY)
+    {
+        // 左右移动
+        int minX = (PlayerX < GoX) ? PlayerX : GoX; // 找到较小的 x 坐标
+        for (const auto &wall : walls)
+        {
+            // 检查是否有垂直墙壁位于当前单元格和目标单元格之间的垂直线上
+            if (!wall.horizontal && wall.x - 1 == minX && wall.y == PlayerY)
+            {
+                return true; // 垂直墙壁阻挡水平移动
+            }
+            else if (!wall.horizontal && wall.x - 1 == minX && wall.y + 1 == PlayerY)
+            {
+                return true; // 垂直墙壁阻挡水平移动
+            }
+        }
+    }
+    else if (PlayerX == GoX)
+    {
+        // 垂直移动
+        int minY = (PlayerY < GoY) ? PlayerY : GoY; // 找到较小的 y 坐标
+        for (const auto &wall : walls)
+        {
+            // 检查是否有水平墙壁位于当前单元格和目标单元格之间的水平线上
+            if (wall.horizontal && wall.x == PlayerX && wall.y == minY + 1)
+            {
+                return true; // 水平墙壁阻挡垂直移动
+            }
+            else if (wall.horizontal && wall.x + 1 == PlayerX && wall.y == minY + 1)
+            {
+                return true; // 水平墙壁阻挡垂直移动
+            }
+        }
+    }
+    return false; // 路径未被阻挡
+}
+
+void DrawValidMoves(Vector2 validMoves[], int validMovesCount) // 绘制可选路径（黄色小点）
+{
+    for (int i = 0; i < validMovesCount; i++)
+    {
+        DrawCircle(validMoves[i].x * cellSize + cellSize / 2 + uiHorizon, validMoves[i].y * cellSize + cellSize / 2 + uiVertical, 5, YELLOW); // Y坐标加uiVertical
+    }
+}
+
+bool IsPathBlockedForPlayer(Player player, const std::vector<Wall> &walls) // 检查玩家放置墙壁是否阻挡可选路径
+{
+    // 玩家的目标端
+    int targetX = (player.color.r == white.r && player.color.g == white.g && player.color.b == white.b) ? boardSize - 1 : 0; // 判断终点在0还是8
+
+    // BFS 队列
+    std::queue<std::pair<int, int>> q;
+    q.push({player.x, player.y});
+
+    // 访问标记
+    std::unordered_set<int> visited;
+    visited.insert(player.x * boardSize + player.y);
+
+    // 方向数组：上、下、左、右
+    int dx[] = {0, 0, -1, 1};
+    int dy[] = {-1, 1, 0, 0};
+
+    while (!q.empty())
+    {
+        auto current = q.front();
+        q.pop();
+        int x = current.first;
+        int y = current.second;
+
+        // 到达目标端
+        if (x == targetX)
+            return false; // 路径未被阻断
+
+        // 遍历四个方向
+        for (int i = 0; i < 4; i++)
+        {
+            int nx = x + dx[i];
+            int ny = y + dy[i];
+
+            // 检查是否在棋盘范围内
+            if (nx >= 0 && nx < boardSize && ny >= 0 && ny < boardSize)
+            {
+                // 检查路径是否被墙壁阻挡
+                bool isBlocked = false;
+                if (dx[i] == -1 && IsPathBlocked(x, y, nx, ny, walls)) // 左
+                    isBlocked = true;
+                else if (dx[i] == 1 && IsPathBlocked(x, y, nx, ny, walls)) // 右
+                    isBlocked = true;
+                else if (dy[i] == -1 && IsPathBlocked(x, y, nx, ny, walls)) // 上
+                    isBlocked = true;
+                else if (dy[i] == 1 && IsPathBlocked(x, y, nx, ny, walls)) // 下
+                    isBlocked = true;
+
+                if (!isBlocked)
+                {
+                    int key = nx * boardSize + ny;
+                    if (visited.find(key) == visited.end())
+                    {
+                        visited.insert(key);
+                        q.push({nx, ny});
+                    }
+                }
+            }
+        }
+    }
+
+    return true; // 路径被阻断
+}
+
+void ListWalls(const std::vector<Wall> &walls) // 在terminal显示墙壁信息
+{
+    for (size_t i = 0; i < walls.size(); i++)
+    {
+        const Wall &wall = walls[i];
+        const char *direction = wall.horizontal ? "Horizontal" : "Vertical";
+        printf("Wall %zu: x = %d, y = %d, direction = %s\n", i + 1, wall.x, wall.y, direction);
+    }
 }
