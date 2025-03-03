@@ -5,22 +5,22 @@
 #include <unordered_set>
 #include <unistd.h>
 
-Color Board = {174, 160, 145, 255};      // 浅可可色（棋盘） 
-Color background = {244, 243, 232, 255}; // 白色（背景）
-Color brown = {160, 143, 128, 255};      // 可可色
-Color white = {248, 241, 238, 255};      // 白色
-Color black = {84, 74, 65, 255};         // 黑色
-Color line = {176, 159, 145, 255};       // 可可色（美观线条）
-Color textcolor = {105, 103, 92, 255};   // 可可色（字体）
-
+Color Board = {174, 160, 145, 255};         // 浅可可色（棋盘）
+Color background = {244, 243, 232, 255};    // 白色（背景）
+Color brown = {160, 143, 128, 255};         // 可可色
+Color white = {248, 241, 238, 255};         // 白色
+Color black = {84, 74, 65, 255};            // 黑色
+Color line = {176, 159, 145, 255};          // 可可色（美观线条）
+Color textcolor = {105, 103, 92, 255};      // 可可色（字体）
+Color PrelookWallColor = {0, 228, 48, 255}; // 青色（预视墙壁）
 
 const int boardSize = 9; // 棋盘的尺寸
 const int cellSize = 60; // 每个格子的大小
 
-const int uiHorizon  =  50;  // 左右间距 
-const int uiVertical = 220;  // 上下间距
+const int uiHorizon = 50;   // 左右间距
+const int uiVertical = 220; // 上下间距
 
-const char *placementErrorMsg = nullptr;  // 提醒用户放置墙壁错误
+const char *placementErrorMsg = nullptr; // 提醒用户放置墙壁错误
 
 struct Player // 玩家结构体
 {
@@ -29,7 +29,6 @@ struct Player // 玩家结构体
     int walls;   // 玩家持有的墙壁数量
 };
 
-
 struct Wall // 墙壁结构体
 {
     int x, y;        // 墙壁的起始位置
@@ -37,8 +36,9 @@ struct Wall // 墙壁结构体
     int playerid;    // 玩家回合标准
 };
 
-void DrawBoard(); // 绘制棋盘
 
+// 棋盘函数
+void DrawBoard(); // 绘制棋盘
 void DrawPosition(); // 绘制坐标
 
 // 玩家函数
@@ -56,33 +56,35 @@ bool IsWallValid(const Wall &wall, const std::vector<Wall> &walls);             
 bool IsPathBlocked(int PlayerX, int PlayerY, int GoX, int GoY, const std::vector<Wall> &walls); // 检查路径是否被墙壁阻挡
 void ListWalls(const std::vector<Wall> &walls);                                                 // 在terminal显示墙壁信息
 
-
-bool CheckVictory(Player player); // 检查获胜
+// 其他函数
+bool CheckVictory(Player player);                                                                                           // 检查获胜
+int AnalyzeValidMoves(Player &player, Player &opponent, Vector2 *validMoves, int boardSize, const std::vector<Wall> &walls);// 计算玩家可走选项
+void HandlePlayerMove(Player &player, bool &playerSelected, int &currentTurn, int nextTurn, Vector2 validMoves[], int &validMovesCount, int mouseX, int mouseY, float cellSize, float uiHorizon, float uiVertical); // 玩家点击并移动和点击可选路径（黄色小点）
 
 // 主程序
 int main()
 {
-    InitWindow(640 , 1000 , "Quoridor");
+    InitWindow(640, 1000, "Quoridor");
     InitAudioDevice();
 
     Sound clickSound = LoadSound("assets\\clickSound.wav");
     Sound alert = LoadSound("assets\\game_alert.wav");
 
-
-    Player player1 = {0, 4, white, 10}; // 玩家1，初始化位置x=0  y = 4  , red color , 持有7个墙壁 （0~9 ， 像素坐标为0~9 * cellSize）
-    Player player2 = {8, 4, black, 10}; // 玩家2，初始化位置x=8  y = 4  , red color , 持有7个墙壁
+    Player player1 = {0, 4, white, 10}; // 玩家1，初始化位置x=0  y = 4  , white color , 持有7个墙壁 （棋盘坐标 = 0⁓9 ， 像素坐标 = （0⁓9 * cellSize） ）
+    Player player2 = {8, 4, black, 10}; // 玩家2，初始化位置x=8  y = 4  , black color , 持有7个墙壁 （棋盘坐标 = 0⁓9 ， 像素坐标 = （0⁓9 * cellSize） ）
 
     bool player1Selected = false; // 玩家没有被selected
     bool player2Selected = false; // 玩家没有被selected
-    Vector2 validMoves[6];
+
+    int currentTurn = 0;    // 绑定与playerID ， 定义为谁的回合
+
+    Vector2 validMoves[6];  // 最多可走选项为6
     int validMovesCount = 0;
-    int currentTurn = 0; // 绑定与playerID ， 定义为谁的回合
+    
 
-    std::vector<Wall> walls; // 存储所有墙壁 ， 【 wall1 , wall2 , wall3, ...】 wall1车厢里面装着几个信息分别是x，y坐标，横竖状态
-
+    std::vector<Wall> walls; // 存储所有墙壁对象  【 wall1 , wall2 , wall3, ...】 
     bool placingWall = false; // 是否正在放置墙壁
-    Wall tempWall;            // 临时墙壁
-    Color PrelookWallColor = GREEN;
+    Wall tempWall;            // 预览模式墙壁
     bool isHorizontal = false; // 墙壁方向：默认水平为垂直
 
     while (!WindowShouldClose())
@@ -106,9 +108,10 @@ int main()
             }
         }
 
+        //左键点击墙壁进入预览模式
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
         {
-            if (IsMouseOnWallButton(mouseX, mouseY, currentTurn))
+            if (IsMouseOnWallButton(mouseX, mouseY, currentTurn)) // 点击墙壁
             {
                 PlaySound(clickSound);
                 if ((currentTurn == 0 && player1.walls > 0) || (currentTurn == 1 && player2.walls > 0))
@@ -119,9 +122,11 @@ int main()
                     validMovesCount = 0;     // 清除有效路径
                 }
             }
-            else if (placingWall)
+            else if (placingWall) // 已在预览模式
             {
-                int gridX = (mouseX - uiHorizon) / cellSize;
+
+                // 预览墙壁坐标
+                int gridX = (mouseX - uiHorizon) / cellSize; 
                 int gridY = (mouseY - uiVertical) / cellSize;
 
                 // 检查墙壁的第二个格子是否在棋盘范围内
@@ -135,6 +140,7 @@ int main()
                     isSecondCellValid = (gridY < boardSize - 1); // 垂直墙壁的第二个格子是 (x, y+1)
                 }
 
+
                 if (gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize && isSecondCellValid)
                 {
                     tempWall = {gridX, gridY, isHorizontal, currentTurn}; // 设置墙壁方向
@@ -142,14 +148,14 @@ int main()
                     // 检查墙壁是否与已有墙壁重叠
                     bool isOverlapping = !IsWallValid(tempWall, walls);
 
-                    // 临时添加到墙壁列表中
+                    // 预览墙壁正式为实体墙壁，预览模式墙壁和实体墙壁同时存在
                     walls.push_back(tempWall);
 
                     // 检查路径是否被阻断
                     bool isPathBlockedForPlayer1 = IsPathBlockedForPlayer(player1, walls);
                     bool isPathBlockedForPlayer2 = IsPathBlockedForPlayer(player2, walls);
 
-                    // 移除临时墙壁
+                    // 移除预览模式墙壁,
                     walls.pop_back();
 
                     if (isOverlapping)
@@ -181,242 +187,36 @@ int main()
                     }
                 }
             }
-
-            else if (IsMouseOnPlayer(mouseX, mouseY, player1) && currentTurn == 0)
+            else if (IsMouseOnPlayer(mouseX, mouseY, player1) && currentTurn == 0) // 玩家1回合走法
             {
-                printf("\n the another turn : \n\n");
+                // 设定 player1 为当前玩家，并初始化可行移动计数
                 player1Selected = true;
                 player2Selected = false;
-                validMovesCount = 0;
-                if (player1.x > 0 &&                                                       // 检查是否在棋盘范围内（左边界）
-                    !(player1.x - 1 == player2.x && player1.y == player2.y) &&             // 检查目标位置是否被玩家2占据
-                    !IsPathBlocked(player1.x, player1.y, player1.x - 1, player1.y, walls)) // 检查路径是否被墙壁阻挡
-                {
-                    validMoves[validMovesCount++] = {(float)(player1.x - 1), (float)(player1.y)};
-                    printf("Left Side\n");
-                }
-                if (player1.x < boardSize - 1 &&                                           // 检查是否在棋盘范围内（右边界）
-                    !(player1.x + 1 == player2.x && player1.y == player2.y) &&             // 检查目标位置是否被玩家2占据
-                    !IsPathBlocked(player1.x, player1.y, player1.x + 1, player1.y, walls)) // 检查路径是否被墙壁阻挡
-                {
-                    validMoves[validMovesCount++] = {(float)(player1.x + 1), (float)(player1.y)};
-                    printf("Right Side\n");
-                }
-                if (player1.y > 0 &&                                                       // 检查是否在棋盘范围内（上边界）
-                    !(player1.x == player2.x && player1.y - 1 == player2.y) &&             // 检查目标位置是否被玩家2占据
-                    !IsPathBlocked(player1.x, player1.y, player1.x, player1.y - 1, walls)) // 检查路径是否被墙壁阻挡
-                {
-                    validMoves[validMovesCount++] = {(float)(player1.x), (float)(player1.y - 1)};
-                    printf("Up Side\n");
-                }
-                if (player1.y < boardSize - 1 &&                                           // 检查是否在棋盘范围内（下边界）
-                    !(player1.x == player2.x && player1.y + 1 == player2.y) &&             // 检查目标位置是否被玩家2占据
-                    !IsPathBlocked(player1.x, player1.y, player1.x, player1.y + 1, walls)) // 检查路径是否被墙壁阻挡
-                {
-                    validMoves[validMovesCount++] = {(float)(player1.x), (float)(player1.y + 1)};
-                    printf("Down Side\n");
-                }
-                // -------------------------------------------------------------------------------------------------//
-                if (player1.x > 1 && (player1.x - 1 == player2.x && player1.y == player2.y) && !IsPathBlocked(player1.x, player1.y, player1.x - 1, player1.y, walls)) // 玩家2在左手边
-                {
-                    if (!IsPathBlocked(player1.x - 1, player1.y, player1.x - 1 - 1, player1.y, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player1.x - 1 - 1), (float)(player1.y)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player1.x - 1, player1.y, player1.x - 1, player1.y - 1, walls) && player1.y > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x - 1), (float)(player1.y - 1)};
-                        }
-                        if (!IsPathBlocked(player1.x - 1, player1.y, player1.x - 1, player1.y + 1, walls) && player1.y < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x - 1), (float)(player1.y + 1)};
-                        }
-                    }
-                }
-                if (player1.x < boardSize - 2 && (player1.x + 1 == player2.x && player1.y == player2.y) && !IsPathBlocked(player1.x, player1.y, player1.x + 1, player1.y, walls)) // 玩家2在右手边
-                {
-                    if (!IsPathBlocked(player1.x + 1, player1.y, player1.x + 1 + 1, player1.y, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player1.x + 1 + 1), (float)(player1.y)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player1.x + 1, player1.y, player1.x + 1, player1.y - 1, walls) && player1.y > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x + 1), (float)(player1.y - 1)};
-                        }
-                        if (!IsPathBlocked(player1.x + 1, player1.y, player1.x + 1, player1.y + 1, walls) && player1.y < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x + 1), (float)(player1.y + 1)};
-                        }
-                    }
-                }
-                if (player1.y > 1 && (player1.x == player2.x && player1.y - 1 == player2.y) && !IsPathBlocked(player1.x, player1.y, player1.x, player1.y - 1, walls))
-                {
-                    if (!IsPathBlocked(player1.x, player1.y - 1, player1.x, player1.y - 1 - 1, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player1.x), (float)(player1.y - 1 - 1)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player1.x, player1.y - 1, player1.x - 1, player1.y - 1, walls) && player1.x > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x - 1), (float)(player1.y - 1)};
-                        }
-                        if (!IsPathBlocked(player1.x, player1.y - 1, player1.x + 1, player1.y - 1, walls) && player1.x < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x + 1), (float)(player1.y - 1)};
-                        }
-                    }
-                }
-                if (player1.y < boardSize - 2 && (player1.x == player2.x && player1.y + 1 == player2.y) && !IsPathBlocked(player1.x, player1.y, player1.x, player1.y + 1, walls))
-                {
-                    if (!IsPathBlocked(player1.x, player1.y + 1, player1.x, player1.y + 1 + 1, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player1.x), (float)(player1.y + 1 + 1)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player1.x, player1.y + 1, player1.x - 1, player1.y + 1, walls) && player1.x > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x - 1), (float)(player1.y + 1)};
-                        }
-                        if (!IsPathBlocked(player1.x, player1.y + 1, player1.x + 1, player1.y + 1, walls) && player1.x < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player1.x + 1), (float)(player1.y + 1)};
-                        }
-                    }
-                }
 
-                ListWalls(walls);
+                validMovesCount = AnalyzeValidMoves(player1,player2,validMoves,boardSize,walls); // 分析走可选项（player 1）
+
+                
             }
-            else if (IsMouseOnPlayer(mouseX, mouseY, player2) && currentTurn == 1)
+            else if (IsMouseOnPlayer(mouseX, mouseY, player2) && currentTurn == 1) // 玩家2回合走法
             {
                 player2Selected = true;
                 player1Selected = false;
-                validMovesCount = 0;
-                if (player2.x > 0 && !(player2.x - 1 == player1.x && player2.y == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x - 1, player2.y, walls))
-                    validMoves[validMovesCount++] = {(float)(player2.x - 1), (float)(player2.y)};
-                if (player2.x < boardSize - 1 && !(player2.x + 1 == player1.x && player2.y == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x + 1, player2.y, walls))
-                    validMoves[validMovesCount++] = {(float)(player2.x + 1), (float)(player2.y)};
-                if (player2.y > 0 && !(player2.x == player1.x && player2.y - 1 == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x, player2.y - 1, walls))
-                    validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y - 1)};
-                if (player2.y < boardSize - 1 && !(player2.x == player1.x && player2.y + 1 == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x, player2.y + 1, walls))
-                    validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y + 1)};
-                // player 2
-                if (player2.x > 1 && (player2.x - 1 == player1.x && player2.y == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x - 1, player2.y, walls)) // 玩家1在左手边
-                {
-                    if (!IsPathBlocked(player2.x - 1, player2.y, player2.x - 1 - 1, player2.y, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player2.x - 1 - 1), (float)(player2.y)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player2.x - 1, player2.y, player2.x - 1, player2.y - 1, walls) && player2.y > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x - 1), (float)(player2.y - 1)};
-                        }
-                        if (!IsPathBlocked(player2.x - 1, player2.y, player2.x - 1, player2.y + 1, walls) && player2.y < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x - 1), (float)(player2.y + 1)};
-                        }
-                    }
-                }
-                if (player2.x < boardSize - 2 && (player2.x + 1 == player1.x && player2.y == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x + 1, player2.y, walls)) // 玩家1在右手边
-                {
-                    if (!IsPathBlocked(player2.x + 1, player2.y, player2.x + 1 + 1, player2.y, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player2.x + 1 + 1), (float)(player2.y)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player2.x + 1, player2.y, player2.x + 1, player2.y - 1, walls) && player2.y > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x + 1), (float)(player2.y - 1)};
-                        }
-                        if (!IsPathBlocked(player2.x + 1, player2.y, player2.x + 1, player2.y + 1, walls) && player2.y < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x + 1), (float)(player2.y + 1)};
-                        }
-                    }
-                }
-                if (player2.y > 1 && (player2.x == player1.x && player2.y - 1 == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x, player2.y - 1, walls))
-                {
-                    if (!IsPathBlocked(player2.x, player2.y - 1, player2.x, player2.y - 1 - 1, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y - 1 - 1)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player2.x, player2.y - 1, player2.x - 1, player2.y - 1, walls) && player2.x > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x - 1), (float)(player2.y - 1)};
-                        }
-                        if (!IsPathBlocked(player2.x, player2.y - 1, player2.x + 1, player2.y - 1, walls) && player2.x < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x + 1), (float)(player2.y - 1)};
-                        }
-                    }
-                }
-                if (player2.y < boardSize - 2 && (player2.x == player1.x && player2.y + 1 == player1.y) && !IsPathBlocked(player2.x, player2.y, player2.x, player2.y + 1, walls))
-                {
-                    if (!IsPathBlocked(player2.x, player2.y + 1, player2.x, player2.y + 1 + 1, walls))
-                    {
-                        validMoves[validMovesCount++] = {(float)(player2.x), (float)(player2.y + 1 + 1)};
-                    }
-                    else
-                    {
-                        if (!IsPathBlocked(player2.x, player2.y + 1, player2.x - 1, player2.y + 1, walls) && player2.x > 0)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x - 1), (float)(player2.y + 1)};
-                        }
-                        if (!IsPathBlocked(player2.x, player2.y + 1, player2.x + 1, player2.y + 1, walls) && player2.x < boardSize - 1)
-                        {
-                            validMoves[validMovesCount++] = {(float)(player2.x + 1), (float)(player2.y + 1)};
-                        }
-                    }
-                }
+
+                validMovesCount = AnalyzeValidMoves(player2,player1,validMoves,boardSize,walls); // 分析可走选项 (player 2)
+                
             }
         }
-
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) // 检测是否点击玩家和点击可走选项
         {
             if (player1Selected)
             {
-                for (int i = 0; i < validMovesCount; i++)
-                {
-                    if (mouseX >= validMoves[i].x * cellSize + uiHorizon && mouseX <= (validMoves[i].x + 1) * cellSize + uiHorizon &&
-                        mouseY >= (validMoves[i].y * cellSize + uiVertical) && mouseY <= ((validMoves[i].y + 1) * cellSize + uiVertical))
-                    { // 加 uiVertical偏移
-                        player1.x = validMoves[i].x;
-                        player1.y = validMoves[i].y;
-                        player1Selected = false;
-                        currentTurn = 1;
-                        validMovesCount = 0; // 清除有效路径
-                        break;
-                    }
-                }
+                HandlePlayerMove(player1, player1Selected, currentTurn, 1, validMoves, validMovesCount ,mouseX, mouseY, cellSize, uiHorizon, uiVertical);
             }
             else if (player2Selected)
             {
-                for (int i = 0; i < validMovesCount; i++)
-                {
-                    if (mouseX >= validMoves[i].x * cellSize + uiHorizon && mouseX <= (validMoves[i].x + 1) * cellSize + uiHorizon &&
-                        mouseY >= (validMoves[i].y * cellSize + uiVertical) && mouseY <= ((validMoves[i].y + 1) * cellSize + uiVertical))
-                    { // 加 uiVertical偏移
-                        player2.x = validMoves[i].x;
-                        player2.y = validMoves[i].y;
-                        player2Selected = false;
-                        currentTurn = 0;
-                        validMovesCount = 0; // 清除有效路径
-                        break;
-                    }
-                }
+                HandlePlayerMove(player2, player2Selected, currentTurn, 0, validMoves , validMovesCount, mouseX, mouseY, cellSize, uiHorizon, uiVertical);
             }
         }
-
         if (CheckVictory(player1))
         {
             BeginDrawing();
@@ -428,7 +228,6 @@ int main()
             CloseWindow();
             break;
         }
-
         if (CheckVictory(player2))
         {
             BeginDrawing();
@@ -442,6 +241,7 @@ int main()
         }
 
         BeginDrawing();
+
         ClearBackground(background);
         DrawRectangleRounded({0, uiVertical - 50, boardSize * cellSize + uiHorizon + uiHorizon, boardSize * cellSize + 100}, 0.1, 0.0, Board);
         DrawRectangle(50, uiVertical, boardSize * cellSize, boardSize * cellSize, brown);
@@ -481,7 +281,7 @@ int main()
             int gridX = (mouseX - uiHorizon) / cellSize;
             int gridY = (mouseY - uiVertical) / cellSize;
 
-            // 检查是否在棋盘范围内
+            // 检查鼠标是否在棋盘范围内
             bool isWithinBoard = gridX >= 0 && gridX < boardSize && gridY >= 0 && gridY < boardSize;
 
             // 检查墙壁的第二个格子是否在棋盘范围内
@@ -527,7 +327,7 @@ int main()
                 }
             }
         }
-        if (placementErrorMsg)
+        if (placementErrorMsg) // 绘制错误提醒
         {
 
             DrawText(placementErrorMsg, 20, boardSize * cellSize + uiVertical + 150, 25, textcolor);
@@ -535,10 +335,7 @@ int main()
 
         EndDrawing();
     }
-
 }
-
-
 
 // 函数体
 
@@ -555,7 +352,7 @@ bool CheckVictory(Player player) // 检查获胜状态
     return false;
 } // 用rgb颜色判断红方还是蓝方赢
 
-void DrawBoard() //绘制棋盘
+void DrawBoard() // 绘制棋盘
 {
     for (int row = 0; row < boardSize; row++)
     {
@@ -572,7 +369,7 @@ void DrawBoard() //绘制棋盘
     }
 }
 
-void DrawPosition() //绘制棋盘的坐标
+void DrawPosition() // 绘制棋盘的坐标
 {
     DrawText("9", 23, uiVertical + 18, 18, textcolor);
     DrawText("8", 23, uiVertical + 18 + 60 * 1, 18, textcolor);
@@ -700,6 +497,7 @@ bool IsWallValid(const Wall &wall, const std::vector<Wall> &walls) // 检查是�
 
 void RotationWall(bool &isHorizontal) // 旋转墙壁
 {
+    // Q 和 E 具备寻找墙壁功能
     if (IsKeyPressed(KEY_Q))
     {
         if (isHorizontal == true)
@@ -842,5 +640,164 @@ void ListWalls(const std::vector<Wall> &walls) // 在terminal显示墙壁信息
         const Wall &wall = walls[i];
         const char *direction = wall.horizontal ? "Horizontal" : "Vertical";
         printf("Wall %zu: x = %d, y = %d, direction = %s\n", i + 1, wall.x, wall.y, direction);
+    }
+}
+
+int AnalyzeValidMoves(Player &player, Player &opponent, Vector2 *validMoves, int boardSize, const std::vector<Wall> &walls) // 分析玩家可走选项
+{
+    printf("\n\n Another Round \n\n");
+
+    int count = 0; // 有效移动的计数器
+
+    // 检查上下左右的基本移动
+    // 检查向左移动是否有效
+    if (player.x > 0 && !(player.x - 1 == opponent.x && player.y == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x - 1, player.y, walls))
+    {
+        validMoves[count++] = {(float)(player.x - 1), (float)(player.y)}; // 添加向左的有效移动
+    }
+    // 检查向右移动是否有效
+    if (player.x < boardSize - 1 && !(player.x + 1 == opponent.x && player.y == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x + 1, player.y, walls))
+    {
+        validMoves[count++] = {(float)(player.x + 1), (float)(player.y)}; // 添加向右的有效移动
+    }
+    // 检查向上移动是否有效
+    if (player.y > 0 && !(player.x == opponent.x && player.y - 1 == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x, player.y - 1, walls))
+    {
+        validMoves[count++] = {(float)(player.x), (float)(player.y - 1)}; // 添加向上的有效移动
+    }
+    // 检查向下移动是否有效
+    if (player.y < boardSize - 1 && !(player.x == opponent.x && player.y + 1 == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x, player.y + 1, walls))
+    {
+        validMoves[count++] = {(float)(player.x), (float)(player.y + 1)}; // 添加向下的有效移动
+    }
+
+    // 处理跳跃逻辑 - 当对手在相邻位置时的特殊移动规则
+
+    // 处理对手在左侧的跳跃情况
+    if (player.x > 1 && (player.x - 1 == opponent.x && player.y == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x - 1, player.y, walls))
+    {
+        // 尝试直接向左跳过对手
+        if (!IsPathBlocked(player.x - 1, player.y, player.x - 2, player.y, walls))
+        {
+            validMoves[count++] = {(float)(player.x - 2), (float)(player.y)}; // 跳过对手到左侧两格
+        }
+        else
+        {
+            // 如果不能直接跳过，尝试对角线跳跃（左上或左下）
+            if (player.y > 0 && !IsPathBlocked(player.x - 1, player.y, player.x - 1, player.y - 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x - 1), (float)(player.y - 1)}; // 添加左上对角线跳跃
+            }
+            if (player.y < boardSize - 1 && !IsPathBlocked(player.x - 1, player.y, player.x - 1, player.y + 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x - 1), (float)(player.y + 1)}; // 添加左下对角线跳跃
+            }
+        }
+    }
+
+    // 处理对手在右侧的跳跃情况
+    if (player.x < boardSize - 2 && (player.x + 1 == opponent.x && player.y == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x + 1, player.y, walls))
+    {
+        // 尝试直接向右跳过对手
+        if (!IsPathBlocked(player.x + 1, player.y, player.x + 2, player.y, walls))
+        {
+            validMoves[count++] = {(float)(player.x + 2), (float)(player.y)}; // 跳过对手到右侧两格
+        }
+        else
+        {
+            // 如果不能直接跳过，尝试对角线跳跃（右上或右下）
+            if (player.y > 0 && !IsPathBlocked(player.x + 1, player.y, player.x + 1, player.y - 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x + 1), (float)(player.y - 1)}; // 添加右上对角线跳跃
+            }
+            if (player.y < boardSize - 1 && !IsPathBlocked(player.x + 1, player.y, player.x + 1, player.y + 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x + 1), (float)(player.y + 1)}; // 添加右下对角线跳跃
+            }
+        }
+    }
+
+    // 处理对手在上方的跳跃情况
+    if (player.y > 1 && (player.x == opponent.x && player.y - 1 == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x, player.y - 1, walls))
+    {
+        // 尝试直接向上跳过对手
+        if (!IsPathBlocked(player.x, player.y - 1, player.x, player.y - 2, walls))
+        {
+            validMoves[count++] = {(float)(player.x), (float)(player.y - 2)}; // 跳过对手到上方两格
+        }
+        else
+        {
+            // 如果不能直接跳过，尝试对角线跳跃（左上或右上）
+            if (player.x > 0 && !IsPathBlocked(player.x, player.y - 1, player.x - 1, player.y - 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x - 1), (float)(player.y - 1)}; // 添加左上对角线跳跃
+            }
+            if (player.x < boardSize - 1 && !IsPathBlocked(player.x, player.y - 1, player.x + 1, player.y - 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x + 1), (float)(player.y - 1)}; // 添加右上对角线跳跃
+            }
+        }
+    }
+
+    // 处理对手在下方的跳跃情况
+    if (player.y < boardSize - 2 && (player.x == opponent.x && player.y + 1 == opponent.y) &&
+        !IsPathBlocked(player.x, player.y, player.x, player.y + 1, walls))
+    {
+        // 尝试直接向下跳过对手
+        if (!IsPathBlocked(player.x, player.y + 1, player.x, player.y + 2, walls))
+        {
+            validMoves[count++] = {(float)(player.x), (float)(player.y + 2)}; // 跳过对手到下方两格
+        }
+        else
+        {
+            // 如果不能直接跳过，尝试对角线跳跃（左下或右下）
+            if (player.x > 0 && !IsPathBlocked(player.x, player.y + 1, player.x - 1, player.y + 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x - 1), (float)(player.y + 1)}; // 添加左下对角线跳跃
+            }
+            if (player.x < boardSize - 1 && !IsPathBlocked(player.x, player.y + 1, player.x + 1, player.y + 1, walls))
+            {
+                validMoves[count++] = {(float)(player.x + 1), (float)(player.y + 1)}; // 添加右下对角线跳跃
+            }
+        }
+    }
+
+    ListWalls(walls);
+
+    return count; // 返回有效移动的总数
+}
+
+void HandlePlayerMove(Player &player, bool &playerSelected, int &currentTurn, int nextTurn, Vector2 validMoves[], int &validMovesCount, int mouseX, int mouseY, float cellSize, float uiHorizon, float uiVertical) // 玩家点击并移动和点击玩家可选路径（黄色小点）
+{
+    for (int i = 0; i < validMovesCount; i++)
+    { // 遍历所有有效移动位置
+        // 检查鼠标点击的坐标是否落在有效移动的位置上
+        if (mouseX >= validMoves[i].x * cellSize + uiHorizon &&
+            mouseX <= (validMoves[i].x + 1) * cellSize + uiHorizon &&
+            mouseY >= validMoves[i].y * cellSize + uiVertical &&
+            mouseY <= (validMoves[i].y + 1) * cellSize + uiVertical)
+        {
+
+            // 如果点击位置在有效移动范围内，更新玩家位置
+            player.x = validMoves[i].x;
+            player.y = validMoves[i].y;
+
+            // 取消当前玩家选中状态
+            playerSelected = false;
+
+            // 切换当前回合
+            currentTurn = nextTurn;
+
+            // 清空有效移动列表，防止误操作
+            validMovesCount = 0;
+            break; // 结束循环，防止多次更新
+        }
     }
 }
